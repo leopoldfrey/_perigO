@@ -1,6 +1,6 @@
-int encoderCLK = D5;
+int encoderCLK = D7;
 int encoderDT = D6;
-int encoderSW = D7;
+int encoderSW = D5;
 
 int motorPWM = D1;
 int motorDIR = D3;
@@ -12,21 +12,16 @@ long lastencoderValue = 0;
 
 bool running = false;
 
-//long readEncoderValue(void) {
-//  return encoderValue / 4;
-//}
+int buttonState;
+int lastButtonState = LOW;
+unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
+unsigned long debounceDelay = 100;
 
-boolean isButtonPushDown(void) {
-  if (!digitalRead(encoderSW)) {
-    delay(5);
-    if (!digitalRead(encoderSW))
-      return true;
-  }
-  return false;
-}
 
 void setup() {
   Serial.begin (9600);
+  Serial.println();
+  Serial.println("Motor Starting...");
 
   pinMode(encoderCLK, INPUT);
   pinMode(encoderDT, INPUT);
@@ -34,15 +29,22 @@ void setup() {
 
   pinMode(motorPWM, OUTPUT);
   pinMode(motorDIR, OUTPUT);
-  digitalWrite(motorDIR, HIGH);
+  //digitalWrite(motorDIR, HIGH);
 
   digitalWrite(encoderCLK, HIGH); //turn pullup resistor on
   digitalWrite(encoderDT, HIGH); //turn pullup resistor on
+  digitalWrite(encoderSW, HIGH); //turn pullup resistor on
 
   //call updateEncoder() when any high/low changed seen
   //on interrupt 0 (pin 2), or interrupt 1 (pin 3)
   attachInterrupt(encoderCLK, updateEncoder, CHANGE);
   attachInterrupt(encoderDT, updateEncoder, CHANGE);
+
+  /*digitalWrite(motorPWM, 255);
+  delay(1000);
+  analogWrite(motorPWM, 0);*/
+  Serial.println("Motor Ready");
+
 
 }
 
@@ -50,26 +52,41 @@ void loop() {
 
   if (lastencoderValue != encoderValue) {
     Serial.print("Speed ");
-    Serial.print(encoderValue);
-    digitalWrite(motorPWM, encoderValue);
+    Serial.println(encoderValue);
+    analogWrite(motorPWM, encoderValue);
     lastencoderValue = encoderValue;
   }
 
 
+  int reading = digitalRead(encoderSW);
+  //Serial.print("BUTTON DOWN");
+  //Serial.println(reading);
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
+  }
 
-  if (isButtonPushDown()) {
-    if (running) {
-      Serial.println("Stop");
-      running = false;
-      digitalWrite(motorPWM, 0);
-    } else {
-      Serial.println("Start");
-      running = true;
-      digitalWrite(motorPWM, lastencoderValue);
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    // if the button state has changed:
+    if (reading != buttonState) {
+      buttonState = reading;
+      if (buttonState == LOW) {
+        Serial.println("BUTTON DOWN");
+        if (running) {
+          Serial.println("Stop");
+          running = false;
+          analogWrite(motorPWM, 0);
+        } else {
+          Serial.println("Start");
+          running = true;
+          analogWrite(motorPWM, lastencoderValue);
+        }
+      }
     }
   }
 
-  delay(10);
+  lastButtonState = reading;
+
+  //delay(50);
 }
 
 
